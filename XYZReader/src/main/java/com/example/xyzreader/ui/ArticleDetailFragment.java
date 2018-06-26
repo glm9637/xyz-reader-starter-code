@@ -1,5 +1,6 @@
 package com.example.xyzreader.ui;
 
+import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Typeface;
@@ -49,7 +50,14 @@ public class ArticleDetailFragment extends Fragment implements
     private GregorianCalendar START_OF_EPOCH = new GregorianCalendar(2, 1, 1);
 
     private LoadHeadData loadHeadData;
-
+    private Spanned text;
+    private String title;
+    private Spanned subtitle;
+    private String photoUrl;
+    private boolean setData = false;
+    private boolean dataLoaded = false;
+    private int position;
+    
     /**
      * Mandatory empty constructor for the fragment manager to instantiate the
      * fragment (e.g. upon screen orientation changes).
@@ -58,15 +66,16 @@ public class ArticleDetailFragment extends Fragment implements
     }
 
     public interface LoadHeadData {
-        void onLoadHeadData(String title, Spanned subtitle, String photoUrl);
+        void onLoadHeadData(String title, Spanned subtitle, String photoUrl, int position);
     }
 
-    public static ArticleDetailFragment newInstance(long itemId, LoadHeadData loadHeadData) {
+    public static ArticleDetailFragment newInstance(long itemId, LoadHeadData loadHeadData, int position) {
         Bundle arguments = new Bundle();
         arguments.putLong(ARG_ITEM_ID, itemId);
         ArticleDetailFragment fragment = new ArticleDetailFragment();
         fragment.setArguments(arguments);
         fragment.loadHeadData = loadHeadData;
+        fragment.position =position;
         return fragment;
     }
 
@@ -100,19 +109,23 @@ public class ArticleDetailFragment extends Fragment implements
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         mRootView = inflater.inflate(R.layout.fragment_article_detail, container, false);
-
-        mRootView.findViewById(R.id.share_button).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                startActivity(Intent.createChooser(ShareCompat.IntentBuilder.from(getActivity())
-                        .setType("text/plain")
-                        .setText("Some sample text")
-                        .getIntent(), getString(R.string.action_share)));
-            }
-        });
-
         bindViews();
         return mRootView;
+    }
+    
+    public long getID(){
+    	return mItemId;
+    }
+    
+    public int getPosition(){
+    	return position;
+    }
+    
+    public void shareArticle(){
+	    startActivity(Intent.createChooser(ShareCompat.IntentBuilder.from(getActivity())
+			    .setType("text/plain")
+			    .setText(text)
+			    .getIntent(), getString(R.string.action_share)));
     }
 
 
@@ -128,13 +141,10 @@ public class ArticleDetailFragment extends Fragment implements
     }
 
     private void bindViews() {
-        if (mRootView == null) {
+        if (mRootView == null || !setData) {
             return;
         }
 
-        String title;
-        Spanned subtitle;
-        String photoUrl;
 
         TextView bodyView = mRootView.findViewById(R.id.detail_text);
 
@@ -165,12 +175,17 @@ public class ArticleDetailFragment extends Fragment implements
 
             }
             photoUrl = mCursor.getString(ArticleLoader.Query.PHOTO_URL);
-            loadHeadData.onLoadHeadData(title,subtitle,photoUrl);
-            bodyView.setText(Html.fromHtml(mCursor.getString(ArticleLoader.Query.BODY).replaceAll("(\r\n|\n)", "<br />")));
+            
+            text = Html.fromHtml(mCursor.getString(ArticleLoader.Query.BODY).replaceAll("(\r\n|\n)", "<br />"));
+            bodyView.setText(text);
+	        dataLoaded = true;
+            if(setData){
+	            Log.w("LoadHeadDataFrag1",title);
+	            loadHeadData.onLoadHeadData(title,subtitle,photoUrl, position);
+            }
 
         } else {
             mRootView.setVisibility(View.GONE);
-            loadHeadData.onLoadHeadData("N/a",null,null);
             bodyView.setText("N/A");
         }
     }
@@ -205,5 +220,21 @@ public class ArticleDetailFragment extends Fragment implements
         mCursor = null;
         bindViews();
     }
-
+    
+	
+	@Override
+	public void setUserVisibleHint(boolean isVisibleToUser) {
+		super.setUserVisibleHint(isVisibleToUser);
+		if (isVisibleToUser) {
+			setData = true;
+			if(dataLoaded){
+				Log.w("LoadHeadDataFrag2",title);
+				loadHeadData.onLoadHeadData(title,subtitle,photoUrl, position);
+			}else {
+				bindViews();
+			}
+		}else {
+			setData = false;
+		}
+	}
 }
